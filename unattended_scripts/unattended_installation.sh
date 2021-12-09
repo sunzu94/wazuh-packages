@@ -9,7 +9,7 @@ ELKB_VER="7.12.1"
 OD_VER="1.13.2"
 OD_REV="1"
 WAZUH_KIB_PLUG_REV="1"
-
+set -x
 ## Links and paths to resources
 functions_path="install_functions/opendistro"
 config_path="config/opendistro"
