@@ -44,7 +44,7 @@ checkArch() {
 }
 
 installPrerequisites() {
-    logger "Installing all necessary utilities for the installation..."
+    logger "Starting all necessary utility installation."
 
     if [ ${sys_type} == "yum" ]; then
         eval "yum install curl unzip wget libcap -y ${debug}"
@@ -57,15 +57,15 @@ installPrerequisites() {
     fi
 
     if [  "$?" != 0  ]; then
-        logger -e "Prerequisites could not be installed"
+        logger -e "Prerequisites could not be installed."
         exit 1;
     else
-        logger "Done"
+        logger "All necessary utility installation finished."
     fi
 }
 
 addWazuhrepo() {
-    logger "Adding the Wazuh repository..."
+    logger "Adding the Wazuh repository."
     if [ ! -f /etc/yum.repos.d/wazuh.repo ] && [ ! -f /etc/zypp/repos.d/wazuh.repo ] && [ ! -f /etc/apt/sources.list.d/wazuh.list ] ; then
         if [ ${sys_type} == "yum" ]; then
             eval "rpm --import ${repogpg} ${debug}"
@@ -81,12 +81,12 @@ addWazuhrepo() {
     else
         logger "Wazuh repository already exists skipping"
     fi
-    logger "Done" 
+    logger "Wazuh repository added." 
 }
 
 restoreWazuhrepo() {
     if [ -n "${development}" ]; then
-        logger "Setting the Wazuh repository to production"
+        logger "Setting the Wazuh repository to production."
         if [ ${sys_type} == "yum" ] && [ -f /etc/yum.repos.d/wazuh.repo ]; then
             file="/etc/yum.repos.d/wazuh.repo"
         elif [ ${sys_type} == "zypper" ] && [ -f /etc/zypp/repos.d/wazuh.repo ]; then
@@ -94,11 +94,16 @@ restoreWazuhrepo() {
         elif [ ${sys_type} == "apt-get" ] && [ -f /etc/apt/sources.list.d/wazuh.list ]; then
             file="/etc/apt/sources.list.d/wazuh.list"
         else
-            logger "Wazuh repository does not exists"
+            logger -e "Wazuh repository does not exists."
         fi
-        eval "sed -i 's/-dev//g' ${file} ${debug}"
-        eval "sed -i 's/pre-release/4.x/g' ${file} ${debug}"
-        logger "Done"
+
+        if [ -n "${file}" ]; then
+            eval "sed -i 's/-dev//g' ${file} ${debug}"
+            eval "sed -i 's/pre-release/4.x/g' ${file} ${debug}"
+            logger "Wazuh repository was set to production."
+        fi
+
+
     fi
 }
 
@@ -169,7 +174,7 @@ checkInstalled() {
     fi  
 
     if [ -z "${wazuhinstalled}" ] || [ -z "${elasticinstalled}" ] || [ -z "${filebeatinstalled}" ] || [ -z "${kibanainstalled}" ] && [ -n "${uninstall}" ]; then 
-        logger -e " No Wazuh components were found on the system."
+        logger -e "No Wazuh components were found on the system."
         exit 1;        
     fi
 
@@ -327,7 +332,7 @@ logger() {
 rollBack() {
 
     if [ -z "${uninstall}" ]; then
-        logger -w "Cleaning the installation" 
+        logger -w "Starting Wazuh installation cleaning." 
     fi  
 
     if [ -f /etc/yum.repos.d/wazuh.repo ]; then
@@ -339,7 +344,7 @@ rollBack() {
     fi
 
     if [ -n "${wazuhinstalled}" ]; then
-        logger -w "Removing the Wazuh manager..."
+        logger -w "Removing the Wazuh manager."
         if [ "${sys_type}" == "yum" ]; then
             eval "yum remove wazuh-manager -y ${debug}"
         elif [ "${sys_type}" == "zypper" ]; then
@@ -348,10 +353,11 @@ rollBack() {
             eval "apt remove --purge wazuh-manager -y ${debug}"
         fi 
         eval "rm -rf /var/ossec/ ${debug}"
+        logger -w "Wazuh manager removed."
     fi     
 
     if [ -n "${elasticinstalled}" ]; then
-        logger -w "Removing Elasticsearch..."
+        logger -w "Removing Elasticsearch."
         if [ "${sys_type}" == "yum" ]; then
             eval "yum remove opendistroforelasticsearch -y ${debug}"
             eval "yum remove elasticsearch* -y ${debug}"
@@ -366,10 +372,11 @@ rollBack() {
         eval "rm -rf /etc/elasticsearch/ ${debug}"
         eval "rm -rf ./search-guard-tlstool-1.8.zip ${debug}"
         eval "rm -rf ./searchguard ${debug}"
+        logger -w "Elasticsearch removed."
     fi
 
     if [ -n "${filebeatinstalled}" ]; then
-        logger -w "Removing Filebeat..."
+        logger -w "Removing Filebeat."
         if [ "${sys_type}" == "yum" ]; then
             eval "yum remove filebeat -y ${debug}"
         elif [ "${sys_type}" == "zypper" ]; then
@@ -380,10 +387,11 @@ rollBack() {
         eval "rm -rf /var/lib/filebeat/ ${debug}"
         eval "rm -rf /usr/share/filebeat/ ${debug}"
         eval "rm -rf /etc/filebeat/ ${debug}"
+        logger -w "Filebeat removed."
     fi
 
     if [ -n "${kibanainstalled}" ]; then
-        logger -w "Removing Kibana..."
+        logger -w "Removing Kibana."
         if [ "${sys_type}" == "yum" ]; then
             eval "yum remove opendistroforelasticsearch-kibana -y ${debug}"
         elif [ "${sys_type}" == "zypper" ]; then
@@ -394,6 +402,7 @@ rollBack() {
         eval "rm -rf /var/lib/kibana/ ${debug}"
         eval "rm -rf /usr/share/kibana/ ${debug}"
         eval "rm -rf /etc/kibana/ ${debug}"
+        logger -w "Kibana removed."
     fi
 
     if [ -z "${uninstall}" ]; then    

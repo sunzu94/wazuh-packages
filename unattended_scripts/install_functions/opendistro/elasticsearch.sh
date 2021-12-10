@@ -7,7 +7,7 @@
 
 installElasticsearch() {
 
-    logger "Installing Open Distro for Elasticsearch..."
+    logger "Starting Open Distro for Elasticsearch installation."
 
     if [ ${sys_type} == "yum" ]; then
         eval "yum install opendistroforelasticsearch-${opendistro_version}-${opendistro_revision} -y ${debug}"
@@ -18,12 +18,12 @@ installElasticsearch() {
     fi
 
     if [  "$?" != 0  ]; then
-        echo -e "Elasticsearch installation failed"
+        logger -e "Open Distro for Elasticsearch installation failed."
         rollBack
         exit 1;  
     else
         elasticinstalled="1"
-        logger "Done"      
+        logger "Open Distro for Elasticsearch installation finished."
     fi
 
 
@@ -38,31 +38,59 @@ copyCertificatesElasticsearch() {
     else
         name=${IMN[pos]}
     fi
+    
+    logger "Starting Elasticsearch certificates deployment."
+    eval "\
+        cp ${base_path}/certs/${name}.pem /etc/elasticsearch/certs/elasticsearch.pem ${debug} && 
+        cp ${base_path}/certs/${name}-key.pem /etc/elasticsearch/certs/elasticsearch-key.pem ${debug} && 
+        cp ${base_path}/certs/root-ca.pem /etc/elasticsearch/certs/ ${debug} && 
+        cp ${base_path}/certs/admin.pem /etc/elasticsearch/certs/ ${debug} && 
+        cp ${base_path}/certs/admin-key.pem /etc/elasticsearch/certs/ ${debug}"
 
-    eval "cp ${base_path}/certs/${name}.pem /etc/elasticsearch/certs/elasticsearch.pem ${debug}"
-    eval "cp ${base_path}/certs/${name}-key.pem /etc/elasticsearch/certs/elasticsearch-key.pem ${debug}"
-    eval "cp ${base_path}/certs/root-ca.pem /etc/elasticsearch/certs/ ${debug}"
-    eval "cp ${base_path}/certs/admin.pem /etc/elasticsearch/certs/ ${debug}"
-    eval "cp ${base_path}/certs/admin-key.pem /etc/elasticsearch/certs/ ${debug}"
+    if [  "$?" != 0  ]; then
+        logger -e "Elasticsearch certificates deployment failed."
+        rollBack
+        exit 1;  
+    else
+        logger "Elasticsearch certificates deployment finished."
+    fi
 }
 
 configureElasticsearchAIO() {
 
-    logger "Configuring Elasticsearch..."
+    logger "Starting Elasticsearch configuration."
 
-    eval "getConfig elasticsearch/elasticsearch_unattended.yml /etc/elasticsearch/elasticsearch.yml  ${debug}"
-    eval "getConfig elasticsearch/roles/roles.yml /usr/share/elasticsearch/plugins/opendistro_security/securityconfig/roles.yml  ${debug}"
-    eval "getConfig elasticsearch/roles/roles_mapping.yml /usr/share/elasticsearch/plugins/opendistro_security/securityconfig/roles_mapping.yml  ${debug}"
-    eval "getConfig elasticsearch/roles/internal_users.yml /usr/share/elasticsearch/plugins/opendistro_security/securityconfig/internal_users.yml  ${debug}"        
+    eval "\
+        getConfig elasticsearch/elasticsearch_unattended.yml /etc/elasticsearch/elasticsearch.yml ${debug} &&
+        getConfig elasticsearch/roles/roles.yml /usr/share/elasticsearch/plugins/opendistro_security/securityconfig/roles.yml ${debug} && 
+        getConfig elasticsearch/roles/roles_mapping.yml /usr/share/elasticsearch/plugins/opendistro_security/securityconfig/roles_mapping.yml  ${debug} && 
+        getConfig elasticsearch/roles/internal_users.yml /usr/share/elasticsearch/plugins/opendistro_security/securityconfig/internal_users.yml  ${debug}"
+
+    if [  "$?" != 0  ]; then
+        logger -e "Elasticsearch configuration files were not possible to be placed."
+        rollBack
+        exit 1;  
+    else
+        logger "Elasticsearch configuration files placed."
+    fi
     
-    eval "rm /etc/elasticsearch/esnode-key.pem /etc/elasticsearch/esnode.pem /etc/elasticsearch/kirk-key.pem /etc/elasticsearch/kirk.pem /etc/elasticsearch/root-ca.pem -f ${debug}"
+    eval "rm /etc/elasticsearch/esnode-key.pem /etc/elasticsearch/esnode.pem /etc/elasticsearch/kirk-key.pem /etc/elasticsearch/kirk.pem /etc/elasticsearch/root-ca.pem -f ${debug}" 
 
     export JAVA_HOME=/usr/share/elasticsearch/jdk/
         
-    eval "mkdir /etc/elasticsearch/certs/ ${debug}"
-    eval "cp ${base_path}/certs/elasticsearch* /etc/elasticsearch/certs/ ${debug}"
-    eval "cp ${base_path}/certs/root-ca.pem /etc/elasticsearch/certs/ ${debug}"
-    eval "cp ${base_path}/certs/admin* /etc/elasticsearch/certs/ ${debug}"
+    eval "\
+        mkdir /etc/elasticsearch/certs/ ${debug} &&
+        cp ${base_path}/certs/elasticsearch* /etc/elasticsearch/certs/ ${debug} &&
+        cp ${base_path}/certs/root-ca.pem /etc/elasticsearch/certs/ ${debug} &&
+        cp ${base_path}/certs/admin* /etc/elasticsearch/certs/ ${debug}"
+    
+    if [  "$?" != 0  ]; then
+        logger -e "Elasticsearch certificates were not possible to be placed."
+        rollBack
+        exit 1;  
+    else
+        logger "Elasticsearch certificates placed."
+    fi
     
     # Configure JVM options for Elasticsearch
     ram_gb=$(free -g | awk '/^Mem:/{print $2}')
@@ -77,25 +105,39 @@ configureElasticsearchAIO() {
     eval "/usr/share/elasticsearch/bin/elasticsearch-plugin remove opendistro-performance-analyzer ${debug}"
     # Start Elasticsearch
     startService "elasticsearch"
-    logger "Initializing Elasticsearch..."
+    logger "Starting Elasticsearch."
     until $(curl -XGET https://localhost:9200/ -uadmin:admin -k --max-time 120 --silent --output /dev/null); do
-        echo -ne ${char}
         sleep 10
-    done  
-    echo ""  
+    done 
 
     eval "/usr/share/elasticsearch/plugins/opendistro_security/tools/securityadmin.sh -cd /usr/share/elasticsearch/plugins/opendistro_security/securityconfig/ -icl -nhnv -cacert /etc/elasticsearch/certs/root-ca.pem -cert /etc/elasticsearch/certs/admin.pem -key /etc/elasticsearch/certs/admin-key.pem ${debug}"
-    logger "Done"
+    if [  "$?" != 0  ]; then
+        logger -e "Elasticsearch could not be initialized."
+        rollBack
+        exit 1;  
+    else
+        logger "Elasticsearch started."
+    fi
+    
 
 }
 
 configureElasticsearch() {
-    logger "Configuring Elasticsearch..."
+    logger "Starting Elasticsearch configuration."
 
-    eval "getConfig elasticsearch/elasticsearch_unattended_distributed.yml /etc/elasticsearch/elasticsearch.yml ${debug}"
-    eval "getConfig elasticsearch/roles/roles.ym /usr/share/elasticsearch/plugins/opendistro_security/securityconfig/roles.yml ${debug}"
-    eval "getConfig elasticsearch/roles/roles_mapping.yml /usr/share/elasticsearch/plugins/opendistro_security/securityconfig/roles_mapping.yml ${debug}"
-    eval "getConfig elasticsearch/roles/internal_users.yml /usr/share/elasticsearch/plugins/opendistro_security/securityconfig/internal_users.yml ${debug}"
+    eval "\
+        getConfig elasticsearch/elasticsearch_unattended_distributed.yml /etc/elasticsearch/elasticsearch.yml ${debug} &&
+        getConfig elasticsearch/roles/roles.ym /usr/share/elasticsearch/plugins/opendistro_security/securityconfig/roles.yml ${debug} && 
+        getConfig elasticsearch/roles/roles_mapping.yml /usr/share/elasticsearch/plugins/opendistro_security/securityconfig/roles_mapping.yml ${debug} && 
+        getConfig elasticsearch/roles/internal_users.yml /usr/share/elasticsearch/plugins/opendistro_security/securityconfig/internal_users.yml ${debug}"
+
+    if [  "$?" != 0  ]; then
+        logger -e "Elasticsearch configuration files were not possible to be placed."
+        rollBack
+        exit 1;  
+    else
+        logger "Elasticsearch configuration files placed."
+    fi
 
     checkNodes
     
@@ -195,7 +237,7 @@ initializeElastic() {
     logger "Elasticsearch installed."
 
     # Start Elasticsearch
-    logger "Starting Elasticsearch..."
+    logger "Starting Elasticsearch."
     startService "elasticsearch"
     logger "Initializing Elasticsearch..."
 
@@ -210,5 +252,5 @@ initializeElastic() {
         eval "/usr/share/elasticsearch/plugins/opendistro_security/tools/securityadmin.sh -cd /usr/share/elasticsearch/plugins/opendistro_security/securityconfig/ -nhnv -cacert /etc/elasticsearch/certs/root-ca.pem -cert /etc/elasticsearch/certs/admin.pem -key /etc/elasticsearch/certs/admin-key.pem -h ${nip} ${debug}"
     fi
 
-    logger "Done"
+    logger "Elasticsearch initialization completed."
 }
